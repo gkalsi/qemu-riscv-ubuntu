@@ -85,7 +85,19 @@ fi
 $QEMU_BINARY -machine virt -m 8G -smp cpus=8 -nographic        \
     -cpu rv64,v=true,zba=true,zbb=true,vlen=512,vext_spec=v1.0 \
     -kernel $U_BOOT_BIN                                        \
-    -netdev user,id=net0                                       \
-    -device virtio-net-device,netdev=net0                      \
     -device virtio-rng-pci                                     \
+    -device virtio-net-device,netdev=net0                      \
+    -netdev user,id=net0,hostfwd=tcp::5555-:22                 \
     -drive file=$UBUNTU_QCOW,format=raw,if=virtio
+
+# Generate a set of keys to use to communicate with the host.
+ssh-keygen -f ./$ARTIFACTS_ROOT_DIR/id_rsa -t ed25519
+
+# Copy the generated SSH certificate to the QEMU machine.
+# TODO(gkalsi): 
+sshpass -ffilename default_password.txt scp -P 5555 -o StrictHostKeyChecking=no ./$ARTIFACTS_ROOT_DIR/id_rsa.pub ubuntu@localhost:~/.ssh/authorized_keys
+
+# SSH into the target machine.
+scp -i ./id_rsa -P 5555 ./bootstrap_guest.sh ubuntu@localhost:~/bootstrap_guest.sh
+
+ssh -i ./id_rsa -p 5555 ubuntu@localhost -t 'bash ~/bootstrap_guest.sh'
